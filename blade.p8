@@ -5,36 +5,100 @@ function _init()
  t,f=true,false
  tab=true
  cur_qu=1
- create_popup(
- "use these resources?","forge",
- "cancel")
+ phase="quest"
+ mat_index,enc_index=1,1
+ chosen_mat,chosen_enc=0,0
  init_database()
  init_mat_win()
+ init_wep_win()
  init_qu_win()
 end
 
 function _update60()
+ --choix de l'index
+ local index,max_index=0,0
+ if popup then
+ 	index=popup.index
+ 	max_index=#popup.choices
+ elseif phase=="materials" then
+  if tab then
+	  index=mat_index
+	  max_index=#materials
+	 else
+	  index=enc_index
+	  max_index=#enchants
+	 end
+ end
+ --deplacement index
 	if btnp(⬆️) then
-		if popup then
-			popup.index=max(1,
-			popup.index-1)
-		end
+	 index=max(1,index-1)
 	end
 	if btnp(⬇️) then
-		if popup then
-			popup.index=min(
-			popup.index+1,#popup.choices)
+		index=min(index+1,max_index)
+	end
+	if popup then
+ 	popup.index=index
+ elseif phase=="materials" then
+  if tab then
+	  mat_index=index
+	 else
+	  enc_index=index
+	 end
+ end
+	---
+	if chosen_mat!=0 then
+		can_forge=true
+	else
+	 can_forge=false
+	end
+	if btn(❎) and btn(🅾️)
+	and phase=="materials"
+	and can_forge then
+		create_popup(
+	 "use these resources?","forge",
+	 "cancel")
+	end
+	if btnp(❎) then
+		if phase=="quest" then
+			phase="materials"
+		elseif phase=="materials" then
+			if tab then
+			 chosen_mat=mat_index
+			elseif chosen_mat!=0 then
+				chosen_enc=enc_index
+			end
 		end
 	end
 	if btnp(🅾️) then
-		tab=not tab
+		if phase=="materials"
+		and not tab then
+			chosen_enc=0
+		end
 	end
+	if btnp(⬅️) or btnp(➡️) then
+		if phase=="materials" then
+			tab=not tab
+		end
+	end
+	--update weapon stats
+	local atk,wgt,sol=0,0,0
+	if chosen_mat!=0 then
+		atk+=materials[chosen_mat].atk
+	end
+	cur_wep.atk,cur_wep.wgt,
+	cur_wep.sol=atk,wgt,sol
 end
 
 function _draw()
  cls()
  draw_mat_win()
- draw_qu_win()
+ draw_wep_win()
+ if phase=="quest" then
+  draw_qu_win()
+	end
+	if can_forge then
+		print("❎+🅾️ forge",80,118,7)
+	end
 	draw_popup()
 end
 -->8
@@ -112,20 +176,34 @@ function init_mat_win()
 	mat_win={x=0,y=7,w=75,h=121}
 end
 
+function init_wep_win()
+	wep_win={x=76,y=7,w=52,h=121}
+end
+
 function draw_mat_win()
 	draw_win_bg(mat_win)
 	spr(tab and 48 or 51,4,0,3,1)
 	local c=materials
+	local index=mat_index
+	local chosen=chosen_mat
 	if not tab then
 	 c=enchants
+	 index=enc_index
+	 chosen=chosen_enc
 	end
 	for i=1,#c do
 	 local w=68
 		local h=16
 		local x=3
 		local y=11+(i-1)*(h+2)
+		local col=5
+		if chosen==i then
+			col=9
+		elseif index==i then
+		 col=6
+		end
 		rectfill(x,y,x+w,y+h,0)
-	 rect(x,y,x+w,y+h,5)
+	 rect(x,y,x+w,y+h,col)
 	 spr(c[i].icon,x+3,y+4)
 	 print(c[i].t1,x+13,y+3,6)
 	 print(c[i].t2,x+13,y+9,5)
@@ -134,6 +212,20 @@ function draw_mat_win()
 	 print(g,gx-1,y+9,6)
 	 spr(54,gx-6,y+7)
 	end
+end
+
+function draw_wep_win()
+	draw_win_bg(wep_win)
+	local x=80
+	local y=20
+	print("ATK:"..cur_wep.atk,
+	x,y,7)
+	y+=7
+	print("WGT:"..cur_wep.wgt,
+	x,y,7)
+	y+=7
+	print("SOL:"..cur_wep.sol,
+	x,y,7)
 end
 
 ---------
@@ -155,21 +247,34 @@ function draw_qu_win()
 	local s="-requirements-"
 	print(s,x-4+w/2-#s*2,y+30,6)
 	y+=40
-	s="ATK:14"
+	s="ATK:"..q.atk
 	print(s,x,y,6)
-	spr(55,x+#s*4,y)
+	if q.atk_bonus then
+		spr(55,x+#s*4,y)
+	end
 	y+=7
-	print("WGT:8",x,y,6)
-	y+=7
-	s="SOL:11"
+	s="WGT:"..q.wgt
 	print(s,x,y,6)
-	spr(55,x+#s*4,y)
+	if q.wgt_bonus then
+		spr(55,x+#s*4,y)
+	end
+	y+=7
+	s="SOL:"..q.sol
+	print(s,x,y,6)
+	if q.sol_bonus then
+		spr(55,x+#s*4,y)
+	end
 	y+=8
-	spr(4,x-2,y-2)
-	print("pOISONOUS",x+6,y,6)
-	y+=7
-	spr(3,x-2,y-2)
-	print("fIRE rEPEL",x+6,y,6)
+	if q.poison then
+		spr(4,x-2,y-2)
+		print("pOISONOUS",x+6,y,6)
+		y+=7
+	end
+	if q.fire then
+		spr(3,x-2,y-2)
+		print("fIRE rEPEL",x+6,y,6)
+		y+=7
+	end
 end
 -->8
 --database
@@ -178,25 +283,29 @@ function init_database()
 	materials={
 	 {
 	  t1="lEATHER",
-	  t2="+8 DEF",
+	  t2="+8 ATK",
+	  atk=10,wgt=5,sol=6,
 	  g=60,
 	  icon=1
 	 },
 	 {
 	  t1="sTIFF lEATHER",
-	  t2="+12 DEF",
+	  t2="+12 ATK",
+	  atk=12,wgt=5,sol=6,
 	  g=80,
 	  icon=1
 	 },
 	 {
 	  t1="tHICK lEATHER",
-	  t2="+20 DEF",
+	  t2="+20 ATK",
+	  atk=20,wgt=5,sol=6,
 	  g=115,
 	  icon=1
 	 },
 	 {
 	  t1="sCALE iRON",
 	  t2="+18 ATK",
+	  atk=18,wgt=12,sol=18,
 	  g=210,
 	  icon=2
 	 }
@@ -215,6 +324,7 @@ function init_database()
 	  icon=4
 	 }
 	}
+	cur_wep={atk=0,wgt=0,sol=0}
 	quests={
 	 {
 	  t1="pOISONOUS sWORD",
@@ -223,8 +333,11 @@ function init_database()
 STRATEGY TO TAKE
 OVER THIS WAR.
 PLEASE HELP US!]],
-	  atk=16,
-	  poison=true
+	  atk=16,atk_bonus=true,
+	  wgt=8,
+	  sol=11,sol_bonus=true,
+	  poison=true,
+	  fire=true
 	 }
 	}
 end
